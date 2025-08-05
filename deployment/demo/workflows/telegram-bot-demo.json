@@ -1,0 +1,256 @@
+{
+  "name": "Telegram Bot Demo - Объяснительные",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ]
+      },
+      "id": "telegram_trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "webhookId": "telegram-demo",
+      "credentials": {
+        "telegramApi": {
+          "id": "demo",
+          "name": "Telegram Demo Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.message?.text }}",
+              "value2": "/start"
+            }
+          ]
+        }
+      },
+      "id": "if_start",
+      "name": "IF Start Command",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "🎖️ *Добро пожаловать в демо-версию бота!*\\n\\nЭто тестовая версия для генерации объяснительных записок.\\n\\nВыберите, от чьего лица нужно написать объяснительную:",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "📌 Командир",
+                    "callback_data": "demo_commander"
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "👁 Очевидец",
+                    "callback_data": "demo_witness"
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "💼 Старшина",
+                    "callback_data": "demo_sergeant"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send_menu",
+      "name": "Send Menu",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [500, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "demo",
+          "name": "Telegram Demo Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.callback_query?.data }}",
+              "operation": "startsWith",
+              "value2": "demo_"
+            }
+          ]
+        }
+      },
+      "id": "if_callback",
+      "name": "IF Callback",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [300, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Demo mode - simulate API response\nconst role = $json.callback_query.data.replace('demo_', '');\nconst chatId = $json.callback_query.message.chat.id;\n\n// Demo responses\nconst demoTexts = {\n  commander: `ОБЪЯСНИТЕЛЬНАЯ ЗАПИСКА\\n\\nКомандиру воинской части 12345\\nполковнику Иванову И.И.\\n\\nот командира взвода\\nлейтенанта Петрова П.П.\\n\\n${new Date().toLocaleDateString('ru-RU')}\\n\\nДовожу до Вашего сведения, что в демо-режиме бота успешно сгенерирована объяснительная записка от лица командира подразделения.\\n\\nЭто демонстрационный текст, показывающий возможности системы.\\n\\nВ production версии здесь будет полноценный текст, сгенерированный через DeepSeek API.\\n\\nЛейтенант                    П.П. Петров`,\n  \n  witness: `ОБЪЯСНИТЕЛЬНАЯ ЗАПИСКА\\n\\n${new Date().toLocaleDateString('ru-RU')}\\n\\nЯ, рядовой Сидоров С.С., являюсь свидетелем демонстрации работы бота.\\n\\nДанный текст сгенерирован в демо-режиме и показывает формат объяснительной от очевидца.\\n\\nВ рабочей версии текст будет более детальным и контекстным.\\n\\nРядовой                    С.С. Сидоров`,\n  \n  sergeant: `ОБЪЯСНИТЕЛЬНАЯ ЗАПИСКА\\n\\nКомандиру роты\\nкапитану Николаеву Н.Н.\\n\\nот старшины роты\\nстаршего прапорщика Михайлова М.М.\\n\\n${new Date().toLocaleDateString('ru-RU')}\\n\\nДемонстрационная объяснительная от лица старшины роты.\\n\\nПоказывает структуру и формат документа.\\n\\nВ production версии будет использоваться AI для генерации.\\n\\nСтарший прапорщик                    М.М. Михайлов`\n};\n\nreturn {\n  chatId: chatId,\n  text: demoTexts[role] || 'Демо-текст объяснительной',\n  role: role\n};"
+      },
+      "id": "prepare_demo_response",
+      "name": "Prepare Demo Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "{{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send_response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [700, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "demo",
+          "name": "Telegram Demo Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Send demo info after response\nconst chatId = $json.chatId;\n\nconst infoText = `\\n\\n📋 *Информация о демо-версии:*\\n\\n• Это тестовая версия бота\\n• В production будет подключен DeepSeek API\\n• Будет вестись учет в Google Sheets\\n• Лимиты и подписки будут работать\\n\\nДля полной версии необходимо:\\n✅ Настроить Google Sheets\\n✅ Получить API ключ DeepSeek\\n✅ Развернуть на сервере\\n\\n💡 Попробуйте другие роли!`;\n\nreturn {\n  chatId: chatId,\n  text: infoText\n};"
+      },
+      "id": "prepare_info",
+      "name": "Prepare Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "{{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send_info",
+      "name": "Send Info",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1100, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "demo",
+          "name": "Telegram Demo Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "IF Start Command",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "IF Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Start Command": {
+      "main": [
+        [
+          {
+            "node": "Send Menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Callback": {
+      "main": [
+        [
+          {
+            "node": "Prepare Demo Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Demo Response": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Response": {
+      "main": [
+        [
+          {
+            "node": "Prepare Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Info": {
+      "main": [
+        [
+          {
+            "node": "Send Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateId": "telegram-demo-bot"
+  },
+  "tags": []
+}

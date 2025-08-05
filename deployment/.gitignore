@@ -1,0 +1,41 @@
+# Environment files with secrets
+.env
+.env.local
+*.env
+
+# SSL certificates
+certbot/
+*.pem
+*.key
+*.crt
+
+# Backup files
+*.sql
+*.gz
+*.tar
+*.zip
+
+# Database volumes
+postgres_data/
+redis_data/
+n8n_data/
+
+# Logs
+*.log
+logs/
+
+# Generated files
+.env.generated
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.swp
+*~

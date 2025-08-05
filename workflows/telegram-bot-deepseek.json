@@ -1,0 +1,639 @@
+{
+  "name": "Telegram Bot - DeepSeek R1 с подписками",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ]
+      },
+      "id": "telegram_trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "webhookId": "telegram-webhook",
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "values": [
+                  {
+                    "leftValue": "={{ $json.message.text }}",
+                    "rightValue": "/start",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "start"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "values": [
+                  {
+                    "leftValue": "={{ $json.callback_query ? true : false }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "callback"
+            }
+          ]
+        }
+      },
+      "id": "switch_router",
+      "name": "Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "🎖️ *Добро пожаловать в бот для генерации объяснительных!*\\n\\nВыберите, от чьего лица нужно написать объяснительную:",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "📌 Командир",
+                    "callback_data": "role_commander"
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "👁 Очевидец",
+                    "callback_data": "role_witness"
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "💼 Старшина",
+                    "callback_data": "role_sergeant"
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "📃 Заключение",
+                    "callback_data": "role_conclusion"
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✍️ Свой текст",
+                    "callback_data": "role_custom"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send_menu",
+      "name": "Send Menu",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [500, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "string"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Users",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "userId",
+              "lookupValue": "={{ $json.callback_query.from.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "google_sheets_read",
+      "name": "Check User",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [500, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "2",
+          "name": "Google Sheets API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Получаем данные\nconst userData = $input.first().json;\nconst callbackData = $node[\"Telegram Trigger\"].json.callback_query;\nconst userId = callbackData.from.id;\nconst chatId = callbackData.message.chat.id;\nconst role = callbackData.data.replace('role_', '');\n\n// Проверяем существует ли пользователь\nif (!userData || Object.keys(userData).length === 0) {\n  // Новый пользователь\n  return {\n    action: 'create_user',\n    userId: userId,\n    chatId: chatId,\n    role: role,\n    quota: 1,\n    sub: false,\n    canGenerate: true\n  };\n}\n\n// Существующий пользователь\nconst quota = parseInt(userData.quota) || 0;\nconst hasSub = userData.sub === 'true' || userData.sub === true;\n\n// Проверяем лимиты\nif (hasSub) {\n  return {\n    action: 'generate',\n    userId: userId,\n    chatId: chatId,\n    role: role,\n    quota: quota,\n    sub: true,\n    canGenerate: true\n  };\n}\n\n// Без подписки\nif (quota < 6) {\n  return {\n    action: 'update_and_generate',\n    userId: userId,\n    chatId: chatId,\n    role: role,\n    quota: quota + 1,\n    sub: false,\n    canGenerate: true,\n    rowNumber: userData.row_number\n  };\n}\n\n// Лимит исчерпан\nreturn {\n  action: 'limit_reached',\n  userId: userId,\n  chatId: chatId,\n  role: role,\n  quota: quota,\n  sub: false,\n  canGenerate: false\n};"
+      },
+      "id": "check_limits",
+      "name": "Check Limits",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 400]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "values": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "create_user",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "create_user"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "values": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "update_and_generate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "update_and_generate"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "values": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "generate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "generate"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "values": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "limit_reached",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "limit_reached"
+            }
+          ]
+        }
+      },
+      "id": "action_router",
+      "name": "Action Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "string"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Users",
+          "mode": "name"
+        },
+        "fieldsUi": {
+          "values": [
+            {
+              "column": "userId",
+              "fieldValue": "={{ $json.userId }}"
+            },
+            {
+              "column": "chatId",
+              "fieldValue": "={{ $json.chatId }}"
+            },
+            {
+              "column": "role",
+              "fieldValue": "={{ $json.role }}"
+            },
+            {
+              "column": "quota",
+              "fieldValue": "={{ $json.quota }}"
+            },
+            {
+              "column": "sub",
+              "fieldValue": "={{ $json.sub }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create_user_sheets",
+      "name": "Create User",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1100, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "2",
+          "name": "Google Sheets API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "string"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Users",
+          "mode": "name"
+        },
+        "dataMode": "autoMapInputData",
+        "fieldsUi": {
+          "values": [
+            {
+              "column": "quota",
+              "fieldValue": "={{ $json.quota }}"
+            },
+            {
+              "column": "role",
+              "fieldValue": "={{ $json.role }}"
+            }
+          ]
+        },
+        "options": {
+          "rangeDefinition": "singleCell",
+          "cellFormat": "USER_ENTERED",
+          "range": {
+            "rangeValue": "={{ 'A' + $json.rowNumber + ':E' + $json.rowNumber }}"
+          }
+        }
+      },
+      "id": "update_user_sheets",
+      "name": "Update User",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1100, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "2",
+          "name": "Google Sheets API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_DEEPSEEK_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "deepseek-chat"
+            },
+            {
+              "name": "messages",
+              "value": "={{ $json.messages }}"
+            },
+            {
+              "name": "temperature",
+              "value": "0.7"
+            },
+            {
+              "name": "max_tokens",
+              "value": "2000"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "deepseek_api",
+      "name": "DeepSeek API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Получаем роль и готовим промпт\nconst role = $json.role;\n\n// Промпты для разных ролей\nconst prompts = {\n  commander: {\n    system: \"Ты опытный военный командир, который пишет объяснительные записки. Твоя задача - написать объяснительную от лица командира подразделения. Стиль должен быть официальным, военным, с использованием соответствующей терминологии.\",\n    user: \"Напиши объяснительную записку от лица командира подразделения по поводу нарушения дисциплины подчиненным. Включи: дату, обстоятельства, принятые меры, выводы.\"\n  },\n  witness: {\n    system: \"Ты очевидец происшествия, который пишет объяснительную записку. Твоя задача - детально описать увиденное, соблюдая хронологию событий.\",\n    user: \"Напиши объяснительную записку от лица очевидца происшествия. Опиши что произошло, когда, где, кто участвовал. Будь объективным и точным.\"\n  },\n  sergeant: {\n    system: \"Ты старшина роты, ответственный за дисциплину и порядок. Пишешь объяснительные по различным ситуациям в подразделении.\",\n    user: \"Напиши объяснительную записку от лица старшины роты. Опиши ситуацию с точки зрения поддержания порядка и дисциплины.\"\n  },\n  conclusion: {\n    system: \"Ты составляешь официальные заключения по результатам служебных проверок. Стиль - официально-деловой, структурированный.\",\n    user: \"Составь заключение по результатам служебной проверки. Включи: основание проверки, установленные факты, выводы и рекомендации.\"\n  },\n  custom: {\n    system: \"Ты помощник по написанию официальных документов. Помоги составить объяснительную записку.\",\n    user: \"Напиши объяснительную записку на произвольную тему. Соблюдай официально-деловой стиль.\"\n  }\n};\n\nconst selectedPrompt = prompts[role] || prompts.custom;\n\nreturn {\n  messages: [\n    {\n      role: \"system\",\n      content: selectedPrompt.system\n    },\n    {\n      role: \"user\",\n      content: selectedPrompt.user\n    }\n  ],\n  role: role,\n  chatId: $json.chatId\n};"
+      },
+      "id": "prepare_prompt",
+      "name": "Prepare Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.choices[0].message.content }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send_response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1700, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "⚠️ *Лимит бесплатных запросов исчерпан!*\\n\\nВы использовали все 6 бесплатных генераций.\\n\\nДля продолжения работы необходимо оформить подписку.",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "💳 Оформить подписку",
+                    "callback_data": "subscribe"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send_limit_message",
+      "name": "Send Limit Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1100, 500],
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Router": {
+      "main": [
+        [
+          {
+            "node": "Send Menu",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check User": {
+      "main": [
+        [
+          {
+            "node": "Check Limits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Limits": {
+      "main": [
+        [
+          {
+            "node": "Action Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action Router": {
+      "main": [
+        [
+          {
+            "node": "Create User",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update User",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Limit Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create User": {
+      "main": [
+        [
+          {
+            "node": "Prepare Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update User": {
+      "main": [
+        [
+          {
+            "node": "Prepare Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Prompt": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek API": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateId": "telegram-deepseek-bot"
+  },
+  "tags": []
+}

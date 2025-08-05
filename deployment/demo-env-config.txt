@@ -1,0 +1,38 @@
+# Demo Configuration - ТОЛЬКО ДЛЯ ТЕСТИРОВАНИЯ!
+# После проверки замените все данные на production
+# Переименуйте этот файл в .env для использования
+
+# Database Configuration (demo)
+POSTGRES_USER=demo
+POSTGRES_PASSWORD=demo_password_123
+POSTGRES_DB=n8n_demo
+
+# Redis Configuration (demo)
+REDIS_PASSWORD=demo_redis_123
+
+# n8n Configuration
+N8N_BASIC_AUTH_USER=demo
+N8N_BASIC_AUTH_PASSWORD=demo123
+N8N_HOST=localhost
+N8N_WEBHOOK_URL=http://localhost:5678/
+N8N_EDITOR_BASE_URL=http://localhost:5678/
+N8N_ENCRYPTION_KEY=demo-encryption-key-32-characters
+
+# Telegram Bot Configuration (DEMO TOKEN - замените после тестирования!)
+TELEGRAM_BOT_TOKEN=8496657855:AAHUqY4llvMB2Pqhw-_AFD4EgyNTPxx4qCw
+
+# Google Sheets Configuration (demo)
+GOOGLE_SHEET_ID=demo_sheet_id_12345
+GOOGLE_CLIENT_ID=demo_client_id
+GOOGLE_CLIENT_SECRET=demo_client_secret
+
+# DeepSeek API Configuration (demo)
+DEEPSEEK_API_KEY=demo_deepseek_key_12345
+
+# Bot Settings
+FREE_QUOTA_LIMIT=6
+BOT_LANGUAGE=ru
+
+# Demo Mode
+DEMO_MODE=true
+MOCK_API_URL=http://mock-api:3001
